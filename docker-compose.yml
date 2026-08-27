@@ -1,0 +1,5 @@
+services:
+  downloader:
+    build: .
+    volumes:
+      - ./data:/app/data
