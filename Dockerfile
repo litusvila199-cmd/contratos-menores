@@ -10,4 +10,4 @@ COPY src/ ./src/
 
 RUN mkdir -p /app/data
 
-CMD ["python", "src/download_data.py"]
+CMD ["python", "-m", "src.download_data"]
