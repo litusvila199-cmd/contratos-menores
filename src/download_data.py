@@ -16,13 +16,13 @@ START_YEAR = 2018
 
 
 def get_current_year_month():
-    """Devuelve el año y el mes actuales."""
+    """Returns the current year and month."""
     now = datetime.now()
     return now.year, now.month
 
 
 def build_monthly_file_info(year, month):
-    """Construye la URL y la ruta local del ZIP mensual."""
+    """Builds the URL and local path for the monthly ZIP file."""
     month_str = f"{month:02d}"
 
     file_name = (
@@ -43,7 +43,7 @@ def build_monthly_file_info(year, month):
 
 
 def build_annual_file_info(year):
-    """Construye la URL y la ruta local del ZIP anual."""
+    """Builds the URL and local path for the annual ZIP file."""
     file_name = (
         f"contratosMenoresPerfilesContratantes_"
         f"{year}.zip"
@@ -57,7 +57,7 @@ def build_annual_file_info(year):
 
 
 def remote_file_exists(url):
-    """Comprueba si un fichero existe sin descargarlo completo."""
+    """Checks whether a file exists without downloading it completely."""
     try:
         response = requests.get(
             url,
@@ -76,7 +76,7 @@ def remote_file_exists(url):
 
     except requests.RequestException as error:
         logger.error(
-            "Error comprobando %s: %s",
+            "Error checking %s: %s",
             url,
             error
         )
@@ -84,9 +84,9 @@ def remote_file_exists(url):
 
 
 def download_file(url, output_path):
-    """Descarga un archivo ZIP por bloques."""
+    """Downloads a ZIP file in chunks."""
     logger.info(
-        "Descargando archivo: %s",
+        "Downloading file: %s",
         output_path.name
     )
 
@@ -114,7 +114,7 @@ def download_file(url, output_path):
         response.close()
 
         logger.info(
-            "Archivo descargado correctamente: %s",
+            "File downloaded successfully: %s",
             output_path.name
         )
 
@@ -122,7 +122,7 @@ def download_file(url, output_path):
 
     except requests.RequestException as error:
         logger.error(
-            "Error al descargar %s: %s",
+            "Error downloading %s: %s",
             output_path.name,
             error
         )
@@ -130,7 +130,7 @@ def download_file(url, output_path):
 
     except OSError as error:
         logger.error(
-            "Error guardando %s: %s",
+            "Error saving %s: %s",
             output_path.name,
             error
         )
@@ -138,9 +138,9 @@ def download_file(url, output_path):
 
 
 def extract_file(zip_path):
-    """Descomprime un archivo ZIP en su directorio."""
+    """Extracts a ZIP file into its directory."""
     logger.info(
-        "Descomprimiendo archivo: %s",
+        "Extracting file: %s",
         zip_path.name
     )
 
@@ -149,7 +149,7 @@ def extract_file(zip_path):
             zip_file.extractall(zip_path.parent)
 
         logger.info(
-            "Archivo descomprimido correctamente: %s",
+            "File extracted successfully: %s",
             zip_path.name
         )
 
@@ -157,14 +157,14 @@ def extract_file(zip_path):
 
     except zipfile.BadZipFile:
         logger.error(
-            "El archivo no es un ZIP válido: %s",
+            "The file is not a valid ZIP: %s",
             zip_path.name
         )
         return False
 
     except OSError as error:
         logger.error(
-            "Error al descomprimir %s: %s",
+            "Error extracting %s: %s",
             zip_path.name,
             error
         )
@@ -172,17 +172,17 @@ def extract_file(zip_path):
 
 
 def process_file(url, output_path):
-    """Descarga y descomprime un fichero si aún no existe."""
+    """Downloads and extracts a file if it does not already exist."""
     if output_path.exists():
         logger.info(
-            "El archivo ya existe, se omite: %s",
+            "File already exists, skipping: %s",
             output_path.name
         )
         return True
 
     if not remote_file_exists(url):
         logger.info(
-            "El archivo no está disponible: %s",
+            "File is not available: %s",
             output_path.name
         )
         return False
@@ -194,11 +194,11 @@ def process_file(url, output_path):
 
 
 def process_annual_file(year):
-    """Procesa el archivo anual de un año histórico."""
+    """Processes the annual file for a historical year."""
     url, output_path = build_annual_file_info(year)
 
     logger.info(
-        "Procesando datos anuales de %s",
+        "Processing annual data for %s",
         year
     )
 
@@ -206,9 +206,9 @@ def process_annual_file(year):
 
 
 def process_current_year(year, current_month):
-    """Procesa los archivos mensuales del año actual."""
+    """Processes the monthly files for the current year."""
     logger.info(
-        "Procesando datos mensuales de %s",
+        "Processing monthly data for %s",
         year
     )
 
@@ -220,14 +220,14 @@ def process_current_year(year, current_month):
 
         if output_path.exists():
             logger.info(
-                "El archivo ya existe, se omite: %s",
+                "File already exists, skipping: %s",
                 output_path.name
             )
             continue
 
         if not remote_file_exists(url):
             logger.info(
-                "El archivo mensual todavía no está disponible: %s",
+                "Monthly file is not available yet: %s",
                 output_path.name
             )
             continue
@@ -239,8 +239,8 @@ def process_current_year(year, current_month):
 
 
 def main():
-    """Ejecuta el proceso completo de descarga."""
-    logger.info("Iniciando proceso de descarga")
+    """Runs the complete download process."""
+    logger.info("Starting download process")
 
     current_year, current_month = get_current_year_month()
 
@@ -252,7 +252,7 @@ def main():
         current_month
     )
 
-    logger.info("Proceso de descarga finalizado")
+    logger.info("Download process finished")
 
 
 if __name__ == "__main__":
