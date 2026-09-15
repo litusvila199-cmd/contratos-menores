@@ -5,188 +5,152 @@ from pathlib import Path
 from src.logger import logger
 
 
-DATA_DIR = Path("data/2025")
-OUTPUT_FILE = DATA_DIR / "contacts_2025.csv"
+NAMESPACES = {
+    "cbc": "urn:dgpe:names:draft:codice:schema:xsd:CommonBasicComponents-2",
+    "cac": "urn:dgpe:names:draft:codice:schema:xsd:CommonAggregateComponents-2",
+    "cac-place-ext": (
+        "urn:dgpe:names:draft:codice-place-ext:"
+        "schema:xsd:CommonAggregateComponents-2"
+    ),
+}
 
 
-def get_text(element, tag_name):
-    """Finds the first element with the given tag and returns its text."""
-
+def get_text(element, path):
+    """Returns the text of an XML element."""
     if element is None:
+        return ""
+    
+    try:
+        child = element.find(path, NAMESPACES)
+
+        if child is None or child.text is None:
+            return ""
+
+        return child.text.strip()
+
+    except AttributeError as error:
+        logger.error("Error extracting XML field: %s", error)
+        return ""
+
+
+def parse_entry(entry):
+    """Extracts the required fields from a contract."""
+    contract_status = entry.find(
+        "cac-place-ext:ContractFolderStatus",
+        NAMESPACES
+    )
+
+    if contract_status is None:
+        logger.warning("ContractFolderStatus not found")
         return None
 
-    for child in element.iter():
-        if child.tag.endswith(tag_name):
-            if child.text and child.text.strip():
-                return child.text.strip()
+    party = contract_status.find(
+        "cac-place-ext:LocatedContractingParty/cac:Party",
+        NAMESPACES
+    )
 
-    return None
+    contact = contract_status.find(
+        "cac-place-ext:LocatedContractingParty/cac:Party/cac:Contact",
+        NAMESPACES
+    )
 
-
-def extract_entry(entry):
-    """Extracts location and contact information from one entry."""
-
-    contract_folder_status = None
-
-    for child in entry:
-        if child.tag.endswith("ContractFolderStatus"):
-            contract_folder_status = child
-            break
-
-    if contract_folder_status is None:
-        return None
-
-    located_party = None
-
-    for child in contract_folder_status:
-        if child.tag.endswith("LocatedContractingParty"):
-            located_party = child
-            break
-
-    if located_party is None:
-        return None
-
-    party = None
-
-    for child in located_party:
-        if child.tag.endswith("Party"):
-            party = child
-            break
-
-    if party is None:
-        return None
-
-    postal_address = None
-
-    for child in party:
-        if child.tag.endswith("PostalAddress"):
-            postal_address = child
-            break
-
-    contact = None
-
-    for child in party:
-        if child.tag.endswith("Contact"):
-            contact = child
-            break
-
-    city = get_text(postal_address, "CityName")
-    postal_code = get_text(postal_address, "PostalZone")
-    address = get_text(postal_address, "Line")
-
-    contact_name = get_text(contact, "Name")
-    telephone = get_text(contact, "Telephone")
-    email = get_text(contact, "ElectronicMail")
+    tender_result = contract_status.find(
+        "cac:TenderResult",
+        NAMESPACES
+    )
 
     return {
-        "city": city,
-        "postal_code": postal_code,
-        "address": address,
-        "contact_name": contact_name,
-        "telephone": telephone,
-        "email": email,
+        "contract_id": get_text(
+            contract_status,
+            "cbc:ContractFolderID"
+        ),
+        "contracting_party": get_text(
+            party,
+            "cac:PartyName/cbc:Name"
+        ),
+        "email": get_text(
+            contact,
+            "cbc:ElectronicMail"
+        ),
+        "winning_party": get_text(
+            tender_result,
+            "cac:WinningParty/cac:PartyName/cbc:Name"
+        ),
+        "url": entry.find(
+            "{http://www.w3.org/2005/Atom}link"
+        ).get("href", ""),
     }
 
 
-def parse_atom_file(atom_file):
-    """Parses one Atom file."""
-
+def process_year(year):
+    """Processes all XML files of a year and creates a CSV."""
+    year_path = Path("data") / str(year)
     records = []
 
-    try:
-        tree = ET.parse(atom_file)
-        root = tree.getroot()
+    for xml_file in year_path.rglob("*.atom"):
+        try:
+            root = ET.parse(xml_file).getroot()
 
-        for child in root:
+            for entry in root.findall(
+                "{http://www.w3.org/2005/Atom}entry"
+            ):
+                record = parse_entry(entry)
 
-            if child.tag.endswith("entry"):
-
-                record = extract_entry(child)
-
-                if record is not None:
+                if record:
                     records.append(record)
 
-    except ET.ParseError as error:
-        logger.error(
-            "XML error in %s: %s",
-            atom_file.name,
-            error
+        except ET.ParseError as error:
+            logger.error(
+                "Error parsing %s: %s",
+                xml_file.name,
+                error
+            )
+
+        except OSError as error:
+            logger.error(
+                "Error reading %s: %s",
+                xml_file.name,
+                error
+            )
+
+    output_file = year_path / f"contracts_{year}.csv"
+
+    with open(output_file, "w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[
+                "contract_id",
+                "contracting_party",
+                "email",
+                "winning_party",
+                "url",
+            ],
         )
 
-    except OSError as error:
-        logger.error(
-            "File error in %s: %s",
-            atom_file.name,
-            error
-        )
+        writer.writeheader()
+        writer.writerows(records)
 
-    return records
+    logger.info(
+        "Year %s processed: %s records",
+        year,
+        len(records)
+    )
 
 
 def main():
-    """Parses all Atom files from 2025."""
+    """Processes all available years."""
+    logger.info("Starting XML parsing process")
 
-    atom_files = sorted(DATA_DIR.rglob("*.atom"))
+    for year_path in sorted(Path("data").iterdir()):
+        if year_path.is_dir() and year_path.name.isdigit():
+            process_year(int(year_path.name))
 
-    logger.info(
-        "Found %s Atom files",
-        len(atom_files)
-    )
-
-    all_records = []
-
-    for atom_file in atom_files:
-
-        logger.info(
-            "Processing: %s",
-            atom_file.name
-        )
-
-        records = parse_atom_file(atom_file)
-
-        all_records.extend(records)
-
-    fieldnames = [
-        "city",
-        "postal_code",
-        "address",
-        "contact_name",
-        "telephone",
-        "email",
-    ]
-
-    try:
-        with open(
-            OUTPUT_FILE,
-            "w",
-            newline="",
-            encoding="utf-8"
-        ) as csv_file:
-
-            writer = csv.DictWriter(
-                csv_file,
-                fieldnames=fieldnames
-            )
-
-            writer.writeheader()
-            writer.writerows(all_records)
-
-        logger.info(
-            "Records extracted: %s",
-            len(all_records)
-        )
-
-        logger.info(
-            "Output file: %s",
-            OUTPUT_FILE
-        )
-
-    except OSError as error:
-        logger.error(
-            "Error writing CSV: %s",
-            error
-        )
+    logger.info("XML parsing process finished")
 
 
 if __name__ == "__main__":
     main()
+
+
+
+    
