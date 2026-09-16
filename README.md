@@ -30,20 +30,40 @@ The downloader follows these steps:
 
 Existing files are skipped to avoid unnecessary downloads.
 
+## XML Parsing
+
+The project also parses the downloaded `.atom` files to extract contract
+information.
+
+The parser processes all `.atom` files for each year and creates one CSV file
+per year.
+
+The following fields are extracted:
+
+- `contract_id`
+- `contracting_party`
+- `email`
+- `winning_party`
+- `url`
+
+The generated CSV files are stored inside their corresponding year directory.
+
+Missing XML fields are handled without stopping the complete parsing process,
+and errors are recorded in the logs.
+
 ## Project Structure
 
 ```text
 contratos-menores/
-│
-├── data/
-│
 ├── src/
 │   ├── __init__.py
 │   ├── download_data.py
+│   ├── parse_xml.py
 │   └── logger.py
 │
 ├── tests/
-│   └── test_download_data.py
+│   ├── test_download_data.py
+│   └── test_parse_xml.py
 │
 ├── .gitignore
 ├── Dockerfile
